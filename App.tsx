@@ -187,6 +187,25 @@ const App: React.FC = () => {
   const accentText = `text-${currentTheme.accentColor}-400`;
   const borderStyle = `border-${currentTheme.primaryColor}-800`;
 
+  // Helper to format text with newlines into paragraphs
+  const formatText = (text: string) => {
+      return text.split('\n').map((line, index) => {
+          if (!line.trim()) return <br key={index} />;
+          // Replace **text** with styled spans
+          const parts = line.split(/(\*\*.*?\*\*)/g);
+          return (
+              <p key={index} className="mb-2">
+                  {parts.map((part, i) => {
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                          return <strong key={i} className={`text-${currentTheme.accentColor}-200`}>{part.slice(2, -2)}</strong>;
+                      }
+                      return part;
+                  })}
+              </p>
+          );
+      });
+  };
+
   return (
     <div className={`min-h-screen w-full text-indigo-50 relative overflow-x-hidden flex flex-col ${bgGradient} transition-colors duration-1000`}>
         <StarField />
@@ -442,11 +461,7 @@ const App: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="prose prose-invert max-w-none leading-relaxed text-slate-200">
-                                        <div dangerouslySetInnerHTML={{ 
-                                            __html: readingText
-                                                .replace(/\*\*(.*?)\*\*/g, `<strong class="text-${currentTheme.accentColor}-200">$1</strong>`)
-                                                .replace(/\n/g, '<br/>') 
-                                        }} />
+                                        {formatText(readingText)}
                                     </div>
                                 )}
                             </div>
@@ -460,7 +475,7 @@ const App: React.FC = () => {
                                         {chatHistory.filter(m => m.role !== 'system' && m.content !== readingText).map((msg, i) => (
                                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                                 <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user' ? `bg-${currentTheme.primaryColor}-900 text-white` : `bg-slate-800 text-slate-200 border ${borderStyle}`}`}>
-                                                    {msg.content}
+                                                    {formatText(msg.content)}
                                                 </div>
                                             </div>
                                         ))}

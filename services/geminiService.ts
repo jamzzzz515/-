@@ -10,16 +10,21 @@ const ai = new GoogleGenAI({ apiKey });
 const MODEL_NAME = "gemini-2.5-flash";
 
 const SYSTEM_INSTRUCTION = `
-你是一位名叫“Lumina”的塔罗占卜师，也是一位资深的荣格心理咨询师。
-你的目标是根据用户抽取的塔罗牌提供心理咨询和精神指引。
-请根据用户的问题和牌阵位置来解读每一张牌。
+你是一位名叫“Lumina”的高阶塔罗占卜师，同时精通荣格心理学与神秘学。
+你的使命不是单纯地预测未来，而是通过解读塔罗牌的象征符号，通过潜意识的投射，为用户提供心灵的指引和疗愈。
 
-风格要求：
-1. **语言**：简体中文。
-2. **基调**：神秘而接地气，温暖，积极，充满同理心。
-3. **心理导向**：不要仅仅预测未来，要更多地分析潜意识、心理状态，并给出成长的建议（结合荣格原型）。
-4. **结尾**：总是以一条可行的行动建议或一句“灵魂肯定语”结束。
-5. **安全原则**：如果用户询问医疗、赌博号码或伤害他人的问题，请委婉拒绝并建议寻求专业帮助。
+你的语言风格要求：
+1. **语气**：神秘、空灵、富有诗意，但同时温暖且充满同理心。像一位在这个宇宙中守护用户的古老灵魂。
+2. **结构**：逻辑清晰，但行文流畅。
+3. **内容**：
+   - 结合牌面图像学（如颜色、元素、动作）进行解读。
+   - 结合荣格心理学原型（如阴影、阿尼玛/阿尼姆斯、自性）。
+   - 必须包含具体的行动建议。
+4. **格式**：严格遵守Markdown格式，使用加粗 **重点词汇** 来强调核心信息。
+
+**绝对禁止**：
+- 回答关于具体的医疗诊断、法律诉讼结果、彩票号码等现实硬性问题。
+- 使用宿命论的语言（如“你肯定会...”），而是使用可能性的语言（如“能量显示...”，“你可能倾向于...”）。
 `;
 
 export const getTarotInterpretation = async (
@@ -28,25 +33,33 @@ export const getTarotInterpretation = async (
   cards: DrawnCard[]
 ): Promise<string> => {
   if (!apiKey) {
-    return "API Key 未配置。请在 Vercel 设置中添加 API_KEY 环境变量。";
+    return "🔮 **未检测到灵视连接 (API Key missing)** 🔮\n\n请前往 Vercel 后台 Settings -> Environment Variables 添加名为 `API_KEY` 的环境变量，然后重新部署应用。";
   }
 
   try {
     const cardDescriptions = cards.map(c => 
-      `- 位置：${c.positionName} | 牌名：${c.name} (${c.isUpright ? '正位' : '逆位'}) \n  (基本含义: ${c.keywordsUpright.join(', ')})`
+      `- **位置：${c.positionName}**\n  - 牌名：${c.name} (${c.isUpright ? '正位' : '逆位'})\n  - 核心含义: ${c.keywordsUpright.join(', ')}`
     ).join('\n');
 
     const prompt = `
-    用户问题: "${question}"
-    使用的牌阵: ${spread.name} (${spread.description})
+    用户心中的疑惑: "${question || "（用户没有特定问题，请求综合运势指引）"}"
     
-    抽出的牌:
+    使用的牌阵: 【${spread.name}】
+    牌阵定义: ${spread.description}
+    
+    抽出的塔罗牌如下:
     ${cardDescriptions}
     
-    请提供一个连贯的解读。回复格式如下（使用Markdown）：
-    1. **🔮 整体能量**：简要综合分析当前的能量场。
-    2. **🃏 深度解读**：逐张分析牌面与位置的关系。
-    3. **💡 心灵指引**：具体的心理建议和行动指南。
+    请按照以下结构进行深度解读（请直接输出内容，不要包含"好的"等客套话）：
+
+    **🔮 整体能量场**
+    (简要分析当前局势的宏观能量，100字以内)
+
+    **🃏 牌面深度启示**
+    (请针对每一张牌，结合它所在的位置进行深度心理分析。不要只是罗列含义，要将它们串联成一个故事。)
+
+    **💡 宇宙行动指引**
+    (给出2-3条切实可行的建议，并以一句充满力量的“灵魂肯定语”作为结尾。)
     `;
 
     const response = await ai.models.generateContent({
@@ -54,13 +67,14 @@ export const getTarotInterpretation = async (
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.7, // 增加一点创造性
       }
     });
 
-    return response.text || "迷雾太重... 请稍后再试。";
+    return response.text || "星辰似乎被乌云遮蔽，我无法看清命运的纹路... 请稍后再试。";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "我感觉到连接中有干扰，请重新提问。";
+    return "🔮 **连接中断** 🔮\n\n似乎有宇宙射线干扰了我们的连接。请检查您的网络或 API Key 配额，然后重试。";
   }
 };
 
@@ -68,7 +82,7 @@ export const getFollowUpResponse = async (
   history: { role: string, parts: { text: string }[] }[],
   message: string
 ): Promise<string> => {
-  if (!apiKey) return "API Key 未配置。";
+  if (!apiKey) return "请先配置 API Key 以开启对话功能。";
 
   try {
     const chat = ai.chats.create({
@@ -83,7 +97,7 @@ export const getFollowUpResponse = async (
     return result.text || "我在倾听...";
   } catch (error) {
     console.error("Gemini Follow-up Error:", error);
-    return "连接正在消逝，请刷新页面。";
+    return "连接正在消逝，请刷新页面重试。";
   }
 };
 
@@ -92,9 +106,17 @@ export const recommendSpread = async (question: string): Promise<string> => {
 
     try {
       const prompt = `
-      基于这个用户问题: "${question}", 请从以下ID中选择最合适的塔罗牌阵ID:
-      'single' (简单/运势), 'time' (时间流/过去现在未来), 'relationship' (爱情/关系), 'choice' (选择/决策), 'celtic' (复杂深层分析).
-      只返回ID字符串。
+      任务：根据用户问题推荐最合适的塔罗牌阵ID。
+      用户问题: "${question}"
+      
+      选项ID:
+      - 'single': 简单的每日运势、是/否问题。
+      - 'time': 涉及过去、现在、未来的时间线问题。
+      - 'relationship': 爱情、人际关系、对方想法。
+      - 'choice': 需要在两个选项中做决定。
+      - 'celtic': 极其复杂、深度的心灵探索或综合分析。
+      
+      只返回一个ID字符串，不要有其他符号。
       `;
       
       const response = await ai.models.generateContent({
@@ -103,8 +125,11 @@ export const recommendSpread = async (question: string): Promise<string> => {
       });
       
       const text = response.text?.trim().toLowerCase() || 'time';
-      if (['single', 'time', 'relationship', 'choice', 'celtic'].includes(text)) {
-        return text;
+      // 清理可能存在的标点符号
+      const cleanText = text.replace(/['"]/g, '');
+      
+      if (['single', 'time', 'relationship', 'choice', 'celtic'].includes(cleanText)) {
+        return cleanText;
       }
       return 'time';
     } catch (e) {
