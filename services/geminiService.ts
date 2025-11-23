@@ -1,8 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { DrawnCard, Spread } from "../types";
 
-// Use process.env.API_KEY as per guidelines.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize AI client. 
+// Note: If process.env.API_KEY is missing (e.g. during initial setup), this might fail gracefully later.
+// We allow empty string to pass here so the app doesn't crash on load, but API calls will fail if key is invalid.
+const apiKey = process.env.API_KEY || "";
+const ai = new GoogleGenAI({ apiKey });
 
 const MODEL_NAME = "gemini-2.5-flash";
 
@@ -24,6 +27,10 @@ export const getTarotInterpretation = async (
   spread: Spread,
   cards: DrawnCard[]
 ): Promise<string> => {
+  if (!apiKey) {
+    return "API Key 未配置。请在 Vercel 设置中添加 API_KEY 环境变量。";
+  }
+
   try {
     const cardDescriptions = cards.map(c => 
       `- 位置：${c.positionName} | 牌名：${c.name} (${c.isUpright ? '正位' : '逆位'}) \n  (基本含义: ${c.keywordsUpright.join(', ')})`
@@ -61,6 +68,8 @@ export const getFollowUpResponse = async (
   history: { role: string, parts: { text: string }[] }[],
   message: string
 ): Promise<string> => {
+  if (!apiKey) return "API Key 未配置。";
+
   try {
     const chat = ai.chats.create({
       model: MODEL_NAME,
@@ -79,6 +88,8 @@ export const getFollowUpResponse = async (
 };
 
 export const recommendSpread = async (question: string): Promise<string> => {
+    if (!apiKey) return 'time';
+
     try {
       const prompt = `
       基于这个用户问题: "${question}", 请从以下ID中选择最合适的塔罗牌阵ID:
