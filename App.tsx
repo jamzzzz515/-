@@ -4,6 +4,7 @@ import { SPREADS, FULL_DECK, THEMES } from './constants';
 import { getTarotInterpretation, getFollowUpResponse, recommendSpread } from './services/geminiService';
 import StarField from './components/StarField';
 import Card from './components/Card';
+import Toast from './components/Toast';
 
 const App: React.FC = () => {
   // State
@@ -26,14 +27,29 @@ const App: React.FC = () => {
   const [selectedLibraryCard, setSelectedLibraryCard] = useState<TarotCard | null>(null);
   const [librarySearch, setLibrarySearch] = useState('');
 
+  // Toast State
+  const [toast, setToast] = useState({ visible: false, message: '' });
+
   // Refs for scrolling
   const readingRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // --- Helpers ---
+  const showToast = (message: string) => {
+    setToast({ visible: true, message });
+  };
+
+  const closeToast = () => {
+    setToast({ visible: false, message: '' });
+  };
 
   // --- Handlers ---
 
   const handleQuestionSubmit = async () => {
-    if (!question.trim()) return;
+    if (!question.trim()) {
+        showToast("请输入内容");
+        return;
+    }
     const recommendedId = await recommendSpread(question);
     const spread = SPREADS.find(s => s.id === recommendedId) || SPREADS[1];
     setSelectedSpread(spread);
@@ -93,9 +109,15 @@ const App: React.FC = () => {
   };
 
   const handleManualSubmit = () => {
+      // Validation: Check for empty strings
+      if (manualNumbers.some(n => !n || n.trim() === '')) {
+          showToast("请输入内容");
+          return;
+      }
+
       const seeds = manualNumbers.map(n => parseInt(n, 10));
       if (seeds.some(n => isNaN(n) || n < 1 || n > 78)) {
-          alert("请输入 1 到 78 之间的数字。");
+          showToast("请输入 1 到 78 之间的数字");
           return;
       }
       
@@ -135,6 +157,13 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealedCount, state]);
 
+  // Auto-scroll to bottom of chat when history updates
+  useEffect(() => {
+    if (state === 'READING' && chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatHistory, state]);
+
   const fetchInterpretation = async () => {
       setIsInterpreting(true);
       const text = await getTarotInterpretation(question, selectedSpread, drawnCards);
@@ -148,7 +177,12 @@ const App: React.FC = () => {
   };
 
   const handleFollowUp = async () => {
-      if (!followUpInput.trim() || isFollowUpLoading) return;
+      if (isFollowUpLoading) return;
+
+      if (!followUpInput.trim()) {
+          showToast("请输入内容");
+          return;
+      }
       
       const userMsg: ChatMessage = { role: 'user', content: followUpInput, timestamp: Date.now() };
       setChatHistory(prev => [...prev, userMsg]);
@@ -167,7 +201,7 @@ const App: React.FC = () => {
   };
 
   const resetApp = () => {
-      if (confirm("确定要开始新的占卜吗？当前的进度将丢失。")) {
+      if (state === 'READING' || confirm("确定要开始新的占卜吗？当前的进度将丢失。")) {
         setState('INTENTION');
         setQuestion('');
         setDrawnCards([]);
@@ -175,6 +209,7 @@ const App: React.FC = () => {
         setReadingText('');
         setChatHistory([]);
         setManualNumbers([]);
+        window.scrollTo(0, 0);
       }
   };
 
@@ -209,6 +244,7 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen w-full text-indigo-50 relative overflow-x-hidden flex flex-col ${bgGradient} transition-colors duration-1000`}>
         <StarField />
+        <Toast message={toast.message} isVisible={toast.visible} onClose={closeToast} />
         
         {/* Header */}
         <header className={`relative z-20 w-full p-4 sm:p-6 flex flex-col md:flex-row justify-between items-center border-b ${borderStyle} bg-slate-950/80 backdrop-blur-sm gap-4`}>
@@ -242,8 +278,12 @@ const App: React.FC = () => {
                     {state === 'LIBRARY' ? '返回' : '牌意百科'}
                 </button>
 
-                {state !== 'INTENTION' && state !== 'LIBRARY' && (
-                    <button onClick={resetApp} className={`text-xs uppercase tracking-widest ${accentText} hover:text-white transition`}>
+                {/* Prominent New Reading Button (Header) */}
+                {state !== 'INTENTION' && (
+                    <button 
+                        onClick={resetApp} 
+                        className={`text-xs font-bold uppercase tracking-widest px-5 py-2 rounded-full bg-gradient-to-r from-${currentTheme.accentColor}-600 to-${currentTheme.primaryColor}-600 text-white border border-${currentTheme.accentColor}-300 shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:scale-105 hover:shadow-[0_0_25px_rgba(255,255,255,0.5)] transition-all duration-300`}
+                    >
                         新占卜
                     </button>
                 )}
@@ -251,7 +291,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 relative z-10 container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[80vh]">
+        <main className={`flex-1 relative z-10 container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[80vh]`}>
             
             {/* LIBRARY VIEW */}
             {state === 'LIBRARY' && (
@@ -331,8 +371,7 @@ const App: React.FC = () => {
                     </div>
                     <button 
                         onClick={handleQuestionSubmit}
-                        disabled={!question.trim()}
-                        className={`mt-8 px-8 py-3 bg-${currentTheme.primaryColor}-900/50 hover:bg-${currentTheme.primaryColor}-800 border border-${currentTheme.primaryColor}-600 rounded-full uppercase tracking-widest text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`mt-8 px-8 py-3 bg-${currentTheme.primaryColor}-900/50 hover:bg-${currentTheme.primaryColor}-800 border border-${currentTheme.primaryColor}-600 rounded-full uppercase tracking-widest text-sm transition-all`}
                     >
                         开始指引
                     </button>
@@ -418,8 +457,7 @@ const App: React.FC = () => {
                     </div>
                     <button 
                         onClick={handleManualSubmit}
-                        disabled={manualNumbers.some(n => !n)}
-                        className={`px-8 py-3 bg-${currentTheme.accentColor}-600/20 hover:bg-${currentTheme.accentColor}-600/40 border border-${currentTheme.accentColor}-600 text-${currentTheme.accentColor}-200 rounded-full transition-all disabled:opacity-50`}
+                        className={`px-8 py-3 bg-${currentTheme.accentColor}-600/20 hover:bg-${currentTheme.accentColor}-600/40 border border-${currentTheme.accentColor}-600 text-${currentTheme.accentColor}-200 rounded-full transition-all`}
                     >
                         揭示命运
                     </button>
@@ -451,58 +489,65 @@ const App: React.FC = () => {
                     {/* Interpretation Area */}
                     {state === 'READING' && (
                         <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                            <div className={`bg-slate-900/80 border ${borderStyle} p-8 rounded-2xl shadow-2xl mb-8`} ref={readingRef}>
-                                <h3 className={`text-2xl font-serif text-center text-${currentTheme.accentColor}-500 mb-6 border-b ${borderStyle} pb-4`}>塔罗指引</h3>
-                                
-                                {isInterpreting ? (
-                                    <div className="flex flex-col items-center gap-4 py-12">
-                                        <div className={`w-8 h-8 border-2 border-${currentTheme.accentColor}-500 border-t-transparent rounded-full animate-spin`}></div>
-                                        <p className="text-slate-300 italic">正在连接高维智慧...</p>
+                            
+                            {/* Scrollable Reading Content */}
+                            <div className="pb-48" ref={readingRef}>
+                                {/* Chat History (Including Initial Interpretation) */}
+                                {chatHistory.map((msg, i) => (
+                                    <div key={i} className={`mb-6 flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                        <div className={`
+                                            max-w-full md:max-w-[85%] rounded-2xl p-6 shadow-xl 
+                                            ${msg.role === 'user' 
+                                                ? `bg-${currentTheme.primaryColor}-900/80 border border-${currentTheme.primaryColor}-600 text-white rounded-tr-sm` 
+                                                : `bg-slate-900/80 border ${borderStyle} text-slate-200 rounded-tl-sm`
+                                            }
+                                        `}>
+                                            {msg.role === 'model' && i === 0 && (
+                                                <h3 className={`text-2xl font-serif text-center text-${currentTheme.accentColor}-500 mb-6 border-b ${borderStyle} pb-4`}>
+                                                    塔罗指引
+                                                </h3>
+                                            )}
+                                            <div className="prose prose-invert max-w-none leading-relaxed">
+                                                {formatText(msg.content)}
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="prose prose-invert max-w-none leading-relaxed text-slate-200">
-                                        {formatText(readingText)}
+                                ))}
+
+                                {/* Loading Indicator */}
+                                {(isInterpreting || isFollowUpLoading) && (
+                                    <div className="flex justify-start mb-6">
+                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-center gap-3">
+                                            <div className={`w-4 h-4 border-2 border-${currentTheme.accentColor}-500 border-t-transparent rounded-full animate-spin`}></div>
+                                            <span className="text-xs text-slate-400 animate-pulse">
+                                                {isInterpreting ? "正在连接高维智慧..." : "Lumina 正在思考..."}
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
+                                
+                                {/* Invisible div to track scroll end */}
+                                <div ref={chatEndRef} />
                             </div>
 
-                            {/* Chat Interface */}
+                            {/* Sticky Bottom Input Bar */}
                             {!isInterpreting && (
-                                <div className={`bg-slate-950 border ${borderStyle} rounded-xl p-4 max-w-3xl mx-auto`} ref={chatRef}>
-                                    <h4 className="text-center text-sm text-slate-400 uppercase tracking-widest mb-4">深入对话</h4>
-                                    
-                                    <div className="max-h-60 overflow-y-auto mb-4 space-y-4 pr-2">
-                                        {chatHistory.filter(m => m.role !== 'system' && m.content !== readingText).map((msg, i) => (
-                                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user' ? `bg-${currentTheme.primaryColor}-900 text-white` : `bg-slate-800 text-slate-200 border ${borderStyle}`}`}>
-                                                    {formatText(msg.content)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {isFollowUpLoading && (
-                                            <div className="flex justify-start">
-                                                <div className="bg-slate-800 p-3 rounded-lg text-xs text-slate-400 animate-pulse">
-                                                    思考中...
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-2">
+                                <div className={`fixed bottom-0 left-0 w-full z-40 bg-slate-950/90 backdrop-blur-md border-t ${borderStyle} p-4`}>
+                                    <div className="container mx-auto max-w-3xl flex gap-2">
                                         <input 
                                             type="text" 
                                             value={followUpInput}
                                             onChange={(e) => setFollowUpInput(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && handleFollowUp()}
-                                            placeholder="在这里输入你的追问..."
-                                            className={`flex-1 bg-slate-900 border ${borderStyle} rounded-lg px-4 py-2 text-sm focus:border-${currentTheme.accentColor}-500 focus:outline-none`}
+                                            placeholder="向塔罗师追问更多细节..."
+                                            className={`flex-1 bg-slate-900 border border-slate-700 rounded-full px-6 py-3 text-sm focus:border-${currentTheme.accentColor}-500 focus:outline-none shadow-inner`}
                                         />
                                         <button 
                                             onClick={handleFollowUp}
-                                            disabled={isFollowUpLoading || !followUpInput.trim()}
-                                            className={`px-4 py-2 bg-${currentTheme.accentColor}-700 hover:bg-${currentTheme.accentColor}-600 text-white rounded-lg text-sm transition-colors disabled:opacity-50`}
+                                            disabled={isFollowUpLoading}
+                                            className={`w-12 h-12 flex items-center justify-center bg-${currentTheme.accentColor}-700 hover:bg-${currentTheme.accentColor}-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:scale-90 active:scale-95 shadow-lg shadow-${currentTheme.accentColor}-900/50`}
                                         >
-                                            发送
+                                            <span className="text-xl">➤</span>
                                         </button>
                                     </div>
                                 </div>
