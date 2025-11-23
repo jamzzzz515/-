@@ -169,11 +169,25 @@ const App: React.FC = () => {
       const text = await getTarotInterpretation(question, selectedSpread, drawnCards);
       setReadingText(text);
       setIsInterpreting(false);
-      setChatHistory([{
+      
+      const initialHistory: ChatMessage[] = [];
+      
+      // Add user question to history
+      if (question) {
+        initialHistory.push({
+          role: 'user',
+          content: question,
+          timestamp: Date.now()
+        });
+      }
+      
+      initialHistory.push({
           role: 'model',
           content: text,
           timestamp: Date.now()
-      }]);
+      });
+
+      setChatHistory(initialHistory);
   };
 
   const handleFollowUp = async () => {
@@ -491,8 +505,8 @@ const App: React.FC = () => {
                         <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-1000">
                             
                             {/* Scrollable Reading Content */}
-                            <div className="pb-48" ref={readingRef}>
-                                {/* Chat History (Including Initial Interpretation) */}
+                            <div ref={readingRef} className="w-full">
+                                {/* Chat History */}
                                 {chatHistory.map((msg, i) => (
                                     <div key={i} className={`mb-6 flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                                         <div className={`
@@ -502,7 +516,7 @@ const App: React.FC = () => {
                                                 : `bg-slate-900/80 border ${borderStyle} text-slate-200 rounded-tl-sm`
                                             }
                                         `}>
-                                            {msg.role === 'model' && i === 0 && (
+                                            {msg.role === 'model' && i === 1 && (
                                                 <h3 className={`text-2xl font-serif text-center text-${currentTheme.accentColor}-500 mb-6 border-b ${borderStyle} pb-4`}>
                                                     塔罗指引
                                                 </h3>
@@ -525,6 +539,9 @@ const App: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
+                                
+                                {/* Spacer to prevent bottom input from blocking content */}
+                                <div className="h-48 w-full flex-shrink-0"></div>
                                 
                                 {/* Invisible div to track scroll end */}
                                 <div ref={chatEndRef} />
